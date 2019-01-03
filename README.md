@@ -34,7 +34,8 @@ def get_sharded_datasets(full_data_path):
  
 Having split the data into chunks, we can now analyze it using the *missingno* library. To install this library, simply go `pip install missingno` in Terminal. Missingno provides a visual way of looking at the dataset column by column to look for the data density -- looks like a lot of missing data! Explore the same for the categorical and the date columns and see what you find.
 
-![Image of Data Sparsity] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/datasparsity.png)
+![Image of Data Sparsity] 
+(/Images/datasparsity.png)
 
 As you can see the dataset is really really sparse, and we need to perform imputation. Moreover, for the sci-kit learn models, we can throw out several columns that hardly have any data and the following function does so.
 
