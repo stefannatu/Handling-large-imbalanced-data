@@ -64,7 +64,7 @@ Looking at the reduced data now we see it looks much better.
 Next we impute the 158 columns with the means (or zeros) using the ```fillna``` command. The following plot shows a few column distributions after imputation and you see that the distributions are rather skewed. 
 
 <p float="left">
-  <img src="https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/distributions.png" width="500" height = "500" align = "middle" />
+  <img src="https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/distributions.png?raw=True" width="500" height = "500" align = "middle" />
  </p>
 
 ## Feature Engineering 
@@ -76,7 +76,7 @@ A second approach to feature engineering when skewness is present is to simple r
 Of all the 158 columns, we can also plot which ones are more strongly correlated to the Response column using the usual Pearson correlation (absolute value). Even before doing any machine learning, its useful to know which columns are important to retain as they might be the dominant features in a good predictive model.
 
 <p float="left">
-  <img src="https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/correlations.png" width="500" height = "500" align = "middle" />
+  <img src="https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/correlations.png?raw=True" width="500" height = "500" align = "middle" />
  </p>
 
 # Model Training in Scikit-Learn - Trading off accuracy versus precision/recall
@@ -128,7 +128,7 @@ We also fit a Logistic Regression using an L1 penalty (given that there are seve
 The ROC Curves are shown here:
 
 <p float="left">
-  <img src="https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/Model_comparison.png" width="500" height = "500" align = "middle" />
+  <img src="https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/Model_comparison.png?raw=True" width="500" height = "500" align = "middle" />
  </p>
 
 The true test of the models will therefore be on the actual test data, which doesn't contain any upsampling of the defective class. The test data we use contains 200K rows of which only 1222 are defective. 
@@ -138,7 +138,7 @@ The random forest performance is the best with a recall score of 91%, but extrem
 The non-normalized confusion matrix for the Random forest on the test dataset is shown here:
 
 <p float="left">
-  <img src="https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/confusion_matrix.png" width="350" height = "350" align = "middle" />
+  <img src="https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/confusion_matrix.png?raw=True" width="350" height = "350" align = "middle" />
  </p>
 
 The above numbers illustrate the value of creating a simple MVP (minimum viable product) model trained on a subset of the data. We naturally expect the model to do better if given more training data, and reduce the train, holdout, validation skew; but as is the model correctly predicts over a 1000 of the defective parts in a 200000 row dataset. However this also comes at a cost: the precision is extremely low, and 20K (almost 10%) of the parts would be called out as defective when they're actually not defective. The business must decide if the additional cost of retesting these parts is still favorable.
