@@ -1,11 +1,11 @@
 # Handling Sparse, Large, imbalanced-data
 ### Explore training large ML models at scale using Tensorflow APIs, sharding data, handling imbalanced data by training for precision/recall over accuracy
 
-Sparse, imbalanced datasets occur in a wide and growing number of business contexts: for example, AirBnb's apartment search relies on a highly sparse dataset as the number of clicks [1], impressions per home are extremely skewed with some highly popular homes getting a lot of clicks, and others getting very few to none. Typical advertising data such as clicks, impressions tends to be highly sparse, imbalanced and skewed as well, as most clicks on a particular landing page (such as Sears.com or ATnT.com) rarely lead to a user actually purchasing a product. On the flip side, websites collect clicks and impressions constantly, making these datasets extremely large, which means that the machine learning models built on these datasets *need* to scale. How to deal with large but extremely sparse and imbalanced datasets is a forefront topic of research in machine learning. 
+Sparse, imbalanced datasets occur in a wide and growing number of business contexts: for example, AirBnb's apartment search relies on a highly sparse dataset as the number of clicks [1], impressions per home are extremely skewed with some highly popular homes getting a lot of clicks, and others getting very few to none. Typical advertising data such as clicks, impressions tends to be highly sparse, imbalanced and skewed as well, as most clicks on a particular landing page (such as Sears.com or ATnT.com) rarely lead to a user actually purchasing a product, so number of failed conversions greatly exceeds the number of conversions. On the flip side, websites collect clicks and impressions constantly, making these datasets extremely large (by large here we mean anything that doens't fit into memory), which means that the machine learning models built on these datasets *need* to scale, as well as have low latency when it comes to making predictions. New ways to deal with large but extremely sparse and imbalanced datasets is a forefront topic of research in machine learning. 
 
-In this post we describe a study conducted on a prototypical example of such a dataset from Kaggle. We work with the Bosch dataset, which is one of the largest Kaggle datasets for modeling production part failures. The objective is to correctly classify parts as good or defective, making this a simple binary classification problem. The challenge lies with the data, found here https://www.kaggle.com/c/bosch-production-line-performance/data. It consists of over 4K columns of numeric, categorical and timestamp features, and over a million rows.  The dataset is large enough to merit advanced methods such as deep neural networks that scale, but also small enough that if needed, the entire dataset (or properly shuffled subsets of the data) can be loaded into memory for training models such as decision trees, linear/logistic regression etc. Moreover the data is extremely imbalanced - containing only 0.6% of the positive class and 99.4% of the other. 
+In this post we describe a study conducted on a prototypical example of such a dataset from Kaggle. We work with the Bosch dataset, which is one of the largest Kaggle datasets for modeling production part failures. The objective is to correctly classify parts as good or defective, making this a simple binary classification problem. The challenge lies with the data, found here https://www.kaggle.com/c/bosch-production-line-performance/data. It consists of over 4K columns of numeric, categorical and timestamp features, and over a million rows.  The dataset is large enough to merit advanced methods such as deep neural networks that scale, but also small enough that if needed, the entire dataset (or properly shuffled shards of the data) can be loaded into memory for training models such as decision trees, linear/logistic regression etc. Moreover the data is extremely imbalanced - containing only 0.6% of the positive class and 99.4% of the other. 
 
-In this post, we describe with code samples our approach for training models which achieve good performance on small datasets using scikit learn, and scalable, deployable models using Tensorflow's Dataset and Estimator APIs and compare the two for performance and other metrics. Throughout we provide code snippets, but the full code is contained in the jupyter notebooks. 
+In this post, we describe with code samples, our approach for training models which achieve good performance on small datasets using scikit learn, and scalable, deployable models using Tensorflow's Dataset and Estimator APIs. We compare and contrast the two approaches both for performance and other metrics, including some helpful tricks learned along the way. Throughout we provide code snippets, but the full code is contained in the jupyter notebooks. 
 
 A natural question is why would you choose one versus the other: unlike models like random forests, logistic regression which require heavy feature engineering, the promise of deep neural networks (DNNs) lies in the fact that given enough data, the model can learn the underlying distributions of the data and the raw data can simply be fed into the model as is. What we found though was that these models are by no means a silver bullet: this is because DNNs quickly tend to overfit as they have so many parameters, and further training doesn't lead to a reduction in the loss. 
 
@@ -37,7 +37,7 @@ Having split the data into chunks, we can now analyze it using the *missingno* l
 ![Image of Data Sparsity] 
 (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/datasparsity.png?raw=True)
 
-As you can see the dataset is really really sparse, and we need to perform imputation. Moreover, for the sci-kit learn models, we can throw out several columns that hardly have any data and the following function does so.
+As you can see the dataset is really, really sparse, and we need to perform imputation. Moreover, for the sci-kit learn models, we can throw out several columns that hardly have any data and the following function does so.
 
 ```python
 def get_reduced_dataset(dataset, threshold):
@@ -55,27 +55,27 @@ For a threshold of 0.5 (50% of the columsn are not empty), the reduced dataset o
 
 Looking at the reduced data now we see it looks much better. 
 
-![Image of Data Sparsity] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/reduced_dataset.png)
+![Image of Data Sparsity] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/reduced_dataset.png?raw=True)
 
 Next we impute the 158 columns with the means (or zeros) using the ```fillna``` command. The following plot shows a few column distributions after imputation and you see that the distributions are rather skewed. 
 
-![Image of Data Distributions] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/distributions.png)
+![Image of Data Distributions] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/distributions.png?raw=True)
 
 ## Feature Engineering 
 
 This skew is typical of much of advertising, impressions based data and merits some feature engineering. A natural approach is to deskew the data using a log transformation. In our study, we found that the data distribution is so highly skewed that the log transformation had a limited effect. 
 
-A second approach to feature engineering when skewness is present is to simple remove the outliers from the data by setting a threshold. We didn't try this approach as it was important for us to keep as many datapoint as possible given the extreme class imbalance.
+A second approach to feature engineering when skewness is present is to simple remove the outliers from the data by setting a threshold. We didn't try this approach as it was important for us to keep as many datapoints as possible given the extreme class imbalance.
 
 Of all the 158 columns, we can also plot which ones are more strongly correlated to the Response column using the usual Pearson correlation (absolute value). Even before doing any machine learning, its useful to know which columns are important to retain as they might be the dominant features in a good predictive model.
 
-![Most important feature columns] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/correlations.png)
+![Most important feature columns] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/correlations.png?raw=True)
 
 # Model Training in Scikit-Learn - Trading off accuracy versus precision/recall
 
-From the skewness of the data, its clear that a logistic regression model may not work as well. One approach would be to try and deskew the data using a log function. An alternative is to train a non parametric model such as a random forest or XGBoost.
+From the skewness of the data, it's clear that a linear regression model may not work as well. One approach would be to try and deskew the data using a log function or try a logistic regression classifier. An alternative is to train a non parametric model such as a random forest or XGBoost, which are much better at handling data with tail distributions. To avoid overfitting, we split the training data into a training and holdout set.
 
-First split the data into train and test. Scale the training data using a standard/minmax scaler. 
+First split the data into train and holdout. Scale the training data using a standard/minmax scaler. 
 
 ```python
 X_train, X_test, y_train, y_test = train_test_split(imputed_dataset, labels, test_size = 0.2)
@@ -85,11 +85,13 @@ scaler = MinMaxScaler().fit(X_train)
 X_train_scaled = scaler.transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 ```
-Having the training and validation splits, we train a Random Forest model using GridSearch. A main advantage of sci-kit learn's API is that you can train a Grid Search to optimize for accuracy, recall or precision. 
+Having the training and holdout splits, we train a Random Forest model using GridSearch. A main advantage of sci-kit learn's API is that you can train a Grid Search to optimize for accuracy, recall or precision. 
 
-Why is training for accuracy not such a good idea here? Given the extremely imbalanced dataset, a model which guessed "Not Faulty" 100% of the time would be 99.4% accurate! However such a model would miss a large number of actually faulty parts in the test set, or so called False Negatives and that would be a disaster. Similarly a model which always predicted faulty, would never miss a faulty part, however the overhead of checking and rechecking the 99.6% of the parts that are actually good would be too much.
+Why is training for accuracy not such a good idea here? Given the extremely imbalanced dataset, a model which guessed "Not Faulty" 100% of the time would be 99.4% accurate! However such a model would miss a large number of actually faulty parts in the test set, or so called False Negatives and that would be a disaster. Similarly a model which always predicted faulty, would never miss a faulty part, however the overhead of checking and rechecking the 99.6% of the parts that are actually good would be too much additional cost.
 
-Training for accuracy is thus not the best idea. Luckily, sci-kit learn's GridSearch allows one to set a parameter to train on, such as accuracy, precision, recall or even a custom functon such as a Matthews Correlation, which kaggle used to judge the competition winners. To see this, the code below trains a model to optimize for Recall using the *scoring* parameter, and runs it on all the available nodes on the computer (*by seting n_jobs = -1).
+When applied to impressions data, a model that always predicted that a particular impression does not lead to a conversion is likely to be extremely accurate, but entirely misses the purpose of finding the features that correlate with actual conversions. 
+
+Training for accuracy is thus not the best idea. Luckily, sci-kit learn's GridSearch allows one to set a parameter to train on, such as accuracy, precision, recall or even a custom functon such as a Matthews Correlation, which Kaggle used to judge the competition winners. To see this, the code below trains a model to optimize for Recall using the *scoring* parameter, and runs it on all the available nodes on the computer (*by seting n_jobs = -1).
 
 ```python3
 
@@ -111,13 +113,25 @@ grid_search = GridSearchCV(estimator = rf, param_grid = param_grid,
 
 grid_search.fit(X_train_scaled, y_train)
 ```
-The best model has a training accuracy of over 98% but a validation accuracy of only 75%. The reason for this is that by growing deeper trees, the random forest can badly overfit. However, in this situation, we are not optimizing for accuracy but rather for recall, and the model has a recall score of about 0.5 on the test data. So it guesses about half the flawed samples correctly. Not bad, but we can do better.
+The best model has a training accuracy of over 98% but a holdout accuracy of only 91%. The reason for this skew is that by growing deeper trees, the random forest can badly overfit. However, in this situation, we are not optimizing for accuracy but rather for recall, and the model has a precision and recall score of about 0.89 and 0.92 on the holdout data which is very good. 
 
-We also fit a Logistic Regression using an L1 penalty (given that there are several correlated features). As expected, the model doesn't perform well with a training accuracy of only 60% and a validation accuracy of 58%, but it overfits less than the random forest.
+We also fit a Logistic Regression using an L1 penalty (given that there are several correlated features). As expected, the model doesn't perform well with a training accuracy of only 60% and a validation accuracy of 60%, but it overfits less than the random forest, because of the smaller train/validation skew. Finally we also fit an XGBoost Model, but the random forest outperforms them all because it is optimized using the grid search.
 
-The ROC curve showing the model's performance is:
+The ROC Curves are shown here:
 
-The true test of the models will therefore be on the actual test data, which doesn't contain any upsampling of the defective class. The model accuracy is: 
+![ROC Curve] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/Model_comparison.png?raw=True)
+
+The true test of the models will therefore be on the actual test data, which doesn't contain any upsampling of the defective class. The test data we use contains 200K rows of which only 1222 are defective. 
+
+The random forest performance is the best with a recall score of 91%, but extremely low precision (0.05). The overall accuracy is 90% which is pretty high. 
+
+The non-normalized confusion matrix for the Random forest on the test dataset is shown here:
+
+![Confusion Matrix] (https://github.com/stefannatu/Handling-large-imbalanced-data/blob/master/Images/confusion_matrix.png?raw=True)
+
+The above numbers illustrate the value of creating a simple MVP (minimum viable product) model trained on a subset of the data. We naturally expect the model to do better if given more training data, and reduce the train, holdout, validation skew; but as is the model correctly predicts over a 1000 of the defective parts in a 200000 row dataset. However this also comes at a cost: the precision is extremely low, and 20K (almost 10%) of the parts would be called out as defective when they're actually not defective. The business must decide if the additional cost of retesting these parts is still favorable.
+
+In advertising data for example, if the model incorrectly predicts cookies who are unlikely to convert as likely to convert, the business might spend advertising money on these cookies. Whether to optimize for precision or recall therefore is strongly driven by the particular use case, and having a simple model which can be tuned to optimize for one or the other is therefore extremely handy. 
 
 ### Including the Categorical data
 
@@ -125,7 +139,7 @@ The categorical dataset is sparser still. In order to deal with this, we introdu
 
 We embed the categorical columns using a LabelEncoder which simply matches the categorical columns to numbers using a dict {'T1': 1 , 'T2': 2, etc.}. A downside of this method is that this encoding can lead to errors as T1 is not actually < T2, but after the encoding it is. However this approach avoids the explosion of features which occurs when you one-hot-encode categorical features, which can be advantageous when training models with already many features. 
 
-It remains as future work to compare the performance between Label and One-hot-encoding, we refer the reader to this post on the subject **which post**
+It remains as future work to compare the performance between Label and One-hot-encoding, we refer the reader to this post on the subject (https://medium.com/@contactsunny/label-encoder-vs-one-hot-encoder-in-machine-learning-3fc273365621)
 
 ```python3
 def get_dense_columns(data, threshold):
@@ -143,7 +157,7 @@ def get_dense_columns(data, threshold):
 
 1) Scikit learn offers some nice APIs to build models on small scale versions of the data that easily fit into memory. More importantly, it allows you to build benchmark models that train quickly, preprocess data, and play with trading off recall and precision. 
 
-2) A downside of this approach is that the model has not seen the entire training data, which is 20X larger than the 50K samples we used here. The extreme sparsity of the features means that the model has not used all the information possible in order to produce results, which could be an issue if this model were to be put into production without training on the entire dataset. Training on large datasets requires either using Spark to load and train models in batches using the spark MLLib libraries, or Tensorflow.
+2) A downside of this approach is that the model has not seen the entire training data, which is 20X larger than the 50K samples we used here. The extreme sparsity of the features means that the model has not used all the information possible in order to produce results, which could be an issue if this model were to be put into production without training on the entire dataset. One evidence for this is the large skew in training, holdout and test accuracy. The best way to reduce this and prevent overfitting is to train the model on more data. This requires either using Spark to load and train models in batches using the spark MLLib libraries, or Tensorflow.
 
 3) Although we don't do this here, if we had the relevant domain knowledge, feature engineering is a major way to improve on traditional statistical machine learning models. However feature engineering is very much problem specific: the features that make sense to advertising data don't make sense for sensor data. An upside of deep networks is the ability to generalize and learn features without having to engineer them by hand. Nonethess traditional statistical models with engineered features tend to be highly performant, so the DNN's are not a silver bullet, as we see below. 
 
@@ -288,7 +302,7 @@ model.train(input_fn = get_train(), max_steps = 10000)
 end = time.time()
 ```
 
-After training, the model results are:
+To compare both models, and to save training time, we train the neural network models on a 50K subset of the data obtained by sharding the full dataset. However the pipeline above is completely general and will work as implemented on the entire training dataset.
 
 'accuracy': 0.9512790255805116, 
 'Confusion_Matrix': array([[47333,  2399],
@@ -306,6 +320,7 @@ and for the wide-and-deep network:
 'Recall Score': 0.0
 'Precision Score': 0.0
 
+So while the deep neural network improves the precision at the cost of recall, the accuracy is much higher than the random forest model on the test dataset. The wide-deep NN however performs poorly, completely missing *all* the faulty examples.
 
 As mentioned above the APIs are excellent for getting a model up and running, but they don't allow you to change much in terms of customizing loss functions or adding your own modifications to the model. But it is easy enough to build custom models in Tensorflow. We learned this the hard way by initially training a model without upsampling. After several hours of training over multiple epochs, the DNNClassifier achieves 99.4% accuracy by calling all test samples as non-defective. Quite disappointing! The API is by no means a silver bullet.
 
